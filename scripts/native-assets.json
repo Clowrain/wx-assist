@@ -1,0 +1,12 @@
+{
+  "release": "https://github.com/MaleleStudySpace/wx-assist/releases/tag/v1.7.0",
+  "url": "https://github.com/MaleleStudySpace/wx-assist/releases/download/v1.7.0/wx-assist_no_rag.exe",
+  "size": 88114819,
+  "sha256": "d9b24b1edff082fbb8fdbf00e4d07b2592b7a4bb30333f76e46e1a63facd84c6",
+  "files": {
+    "lib/wx_key.dll": "9a2f2c6a09a3219afa4748a5e7e513d99c607173c3112c5afcc888996b98248c",
+    "lib/wasm/wasm_decrypt_service.js": "10f4fb9b8896c2287048340a1be4e3e622dffc8d46d3061b7294f6d65ddb1cae",
+    "lib/wasm/wasm_video_decode.js": "c4f0e8236dc9094a92c895c7b549442b147f754cccd10b5fc366ee3a26b86437",
+    "lib/wasm/wasm_video_decode.wasm": "dca796bacec37d8522c7983b3945e5d579bd74164e3b21f0ebc773be6dfc8b6e"
+  }
+}

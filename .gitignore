@@ -16,7 +16,7 @@ test_msgs.json
 
 # Node.js
 node_modules/
-package-lock.json
+# Keep the frontend lockfile for reproducible GitHub Actions builds.
 
 # Logs
 *.log

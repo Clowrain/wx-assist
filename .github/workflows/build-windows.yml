@@ -1,0 +1,123 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master, main]
+    paths:
+      - '.github/workflows/build-windows.yml'
+      - 'build.spec'
+      - 'desktop.py'
+      - 'requirements*.txt'
+      - 'src/**'
+      - 'ui/**'
+      - 'scripts/fetch_native_assets.py'
+      - 'scripts/native-assets.json'
+      - 'scripts/smoke_windows_exe.py'
+      - '.env.example'
+      - 'favicon.ico'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      WEBOT_APP_HOME: ${{ runner.temp }}/wx-assist-smoke
+      WEBOT_ENV_FILE: ${{ runner.temp }}/wx-assist-smoke/.env
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-build.txt
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Install Python build dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Build frontend from lockfile
+        working-directory: ui
+        run: |
+          npm ci --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+
+      - name: Fetch and verify pinned native assets (never run upstream EXE)
+        run: |
+          python scripts/fetch_native_assets.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check lib/wasm/wasm_decrypt_service.js
+
+      - name: Run source smoke tests
+        run: |
+          New-Item -ItemType Directory -Force $env:WEBOT_APP_HOME | Out-Null
+          Copy-Item .env.example $env:WEBOT_ENV_FILE
+          python -m pytest -q tests/test_config.py tests/test_msg_text.py tests/test_plugin_loading.py tests/test_im_foundation.py
+
+      - name: Package Windows x64 EXE
+        run: python -m PyInstaller --clean --noconfirm build.spec
+
+      - name: Verify packaged runtime and local HTTP API
+        run: python scripts/smoke_windows_exe.py dist/wx-assist_no_rag.exe
+
+      - name: Record checksum and build inputs
+        run: |
+          $hash = (Get-FileHash dist/wx-assist_no_rag.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  wx-assist_no_rag.exe" | Set-Content -Encoding utf8 dist/SHA256SUMS.txt
+          "Commit: $env:GITHUB_SHA`nRun: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID`nVariant: no-rag; includes pinned wx_key.dll and WASM resources" | Set-Content -Encoding utf8 dist/BUILD-INFO.txt
+          python -m pip freeze | Set-Content -Encoding utf8 dist/python-dependencies.txt
+          Copy-Item scripts/native-assets.json dist/native-assets.json
+          Copy-Item doc/windows-build.md dist/README-Windows.md
+          "### Windows x64 build`n`nCommit: $env:GITHUB_SHA`n`nSHA-256: $hash`n`nDownload the wx-assist-windows-x64 artifact below." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wx-assist-windows-x64
+          path: |
+            dist/wx-assist_no_rag.exe
+            dist/SHA256SUMS.txt
+            dist/BUILD-INFO.txt
+            dist/python-dependencies.txt
+            dist/native-assets.json
+            dist/README-Windows.md
+            build/smoke-result.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows-build-diagnostics
+          path: |
+            build/build/warn-*.txt
+            build/smoke-result.json
+            ${{ runner.temp }}/wx-assist-smoke/data/crash.log
+          if-no-files-found: ignore
+          retention-days: 7
