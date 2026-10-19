@@ -32,8 +32,8 @@ jobs:
       PYTHONUTF8: '1'
       PYTHONIOENCODING: utf-8
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
-      WEBOT_APP_HOME: ${{ runner.temp }}/wx-assist-smoke
-      WEBOT_ENV_FILE: ${{ runner.temp }}/wx-assist-smoke/.env
+      WEBOT_APP_HOME: ${{ github.workspace }}/build/source-smoke-home
+      WEBOT_ENV_FILE: ${{ github.workspace }}/build/source-smoke-home/.env
     defaults:
       run:
         shell: pwsh
@@ -118,6 +118,6 @@ jobs:
           path: |
             build/build/warn-*.txt
             build/smoke-result.json
-            ${{ runner.temp }}/wx-assist-smoke/data/crash.log
+            build/source-smoke-home/data/crash.log
           if-no-files-found: ignore
           retention-days: 7
